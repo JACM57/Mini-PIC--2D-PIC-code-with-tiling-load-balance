@@ -1,0 +1,10 @@
+box_x=10
+box_y=10
+nx_global=450
+ny_global=450
+guard=2
+interior_nx=25
+interior_ny=25
+sim_time=500
+dt=0.00785674
+total_steps=63639

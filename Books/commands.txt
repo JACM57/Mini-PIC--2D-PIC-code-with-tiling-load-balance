@@ -1,0 +1,17 @@
+mpic++ PIC.cpp -o PIC.o
+mpirun --prefix /opt/openmpi-5.0.6 -np 5 PIC.o
+
+mpic++ PIC_2D_final_TileInfo.cpp -o PIC_2D_final_TileInfo.o
+mpirun --prefix /opt/openmpi-5.0.6 -np 4 PIC_2D_final_TileInfo.o
+
+mpic++ PIC_2D_final_dt.cpp Field_update.cpp -o PIC_2D_final_dt.o
+mpirun --prefix /opt/openmpi-5.0.6 -np 4 PIC_2D_final_dt.o
+
+mpic++ -std=c++11 PIC_2D_final_dt.cpp Auxiliar_functions.cpp Field_update.cpp HDF5_output.cpp \
+  -o PIC_2D_final_dt.o \
+  -I/opt/homebrew/include -L/opt/homebrew/lib -lhdf5_cpp -lhdf5
+
+mpirun --prefix /opt/openmpi-5.0.6 -np 4 PIC_2D_final_dt.o
+
+mpic++ PIC_2D_Communication_test.cpp -o PIC_2D_Communication_test.o
+mpirun --prefix /opt/openmpi-5.0.6 -np 4 PIC_2D_Communication_test.o
