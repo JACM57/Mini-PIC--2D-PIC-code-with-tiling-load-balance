@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
     int rankRow = rank / C;
     int rankCol = rank % C;
 
-    // Each rank starts with 36 tiles (9x9 per rank)
+    // Each rank starts with 36 tiles (6x6 per rank)
     int numTiles = 36;
     int tileRows, tileCols;
     findBestTileGrid(numTiles, tileRows, tileCols);
