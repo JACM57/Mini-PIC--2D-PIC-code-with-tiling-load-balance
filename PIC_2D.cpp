@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
     // -------------------- Time-Stepping Simulation Loop -----------------------
     for (int step = 1; step < total_steps + 1; step++) {
 
-        // --- Phase A: Update B Field ---
+        // --- Phase A: Update B Field (first half) ---
         for (int i = 0; i < (int)info.tiles.size(); i++) {
             Tile &tile = info.tiles[i];
             int totalX = tile.info.nx + 2 * guard;
@@ -317,8 +317,85 @@ int main(int argc, char* argv[]) {
                 }
             }
         } // End Phase D
+        
+        // --- Phase E: Update B Field (second half)---
+        for (int i = 0; i < (int)info.tiles.size(); i++) {
+            Tile &tile = info.tiles[i];
+            int totalX = tile.info.nx + 2 * guard;
+            int totalY = tile.info.ny + 2 * guard;
+            int totalCells = totalX * totalY;
+            vector<GridE> Efull(totalCells);
+            vector<GridB> BhalfOld(totalCells);
+            for (int idx = 0; idx < totalCells; idx++) {
+                Efull[idx].Ex = tile.grid[idx].Ex;
+                Efull[idx].Ey = tile.grid[idx].Ey;
+                Efull[idx].Ez = tile.grid[idx].Ez;
+                BhalfOld[idx].Bx = tile.grid[idx].Bx;
+                BhalfOld[idx].By = tile.grid[idx].By;
+                BhalfOld[idx].Bz = tile.grid[idx].Bz;
+            }
+            vector<GridB> BhalfNew(totalCells);
+            updateBhalf(Efull, BhalfOld, BhalfNew, interior_nx, interior_ny, guard, dt, dx, dy);
+            for (int idx = 0; idx < totalCells; idx++) {
+                tile.grid[idx].Bx = BhalfNew[idx].Bx;
+                tile.grid[idx].By = BhalfNew[idx].By;
+                tile.grid[idx].Bz = BhalfNew[idx].Bz;
+            }
+        }
+        
+        // --- Phase F: Ghuard-Cell Communication after B (second alf) Update ---
+        // Synchronize before starting communication.
+        MPI_Barrier(MPI_COMM_WORLD);
+        {
+            int localTileCount = info.tiles.size();
+            int totalComm = localTileCount * 8;
+            vector<MPI_Request> requests(totalComm * 2);
+            int reqCount = 0;
+            vector< vector< vector<Grid> > > recvBuffers(localTileCount, vector< vector<Grid> >(8));
 
-        // --- Phase E: Dynamic Tile Migration ---
+            // Post receives first.
+            for (int i = 0; i < localTileCount; i++) {
+                Tile &tile = info.tiles[i];
+                int gID = tile.info.globalID;
+                for (int d = 0; d < 8; d++) {
+                    int nbrGID = getNeighborGID(gID, d, globalTileRows, globalTileCols);
+                    int nbrRank = owner[nbrGID];
+                    int nbrDirection = opposite[d];
+                    int tag = computeTag(nbrGID, nbrDirection);
+                    int bufferSize = (d < 2) ? interior_ny * guard :
+                                     (d < 4) ? interior_nx * guard : guard * guard;
+                    recvBuffers[i][d].resize(bufferSize);
+                    MPI_Irecv(&recvBuffers[i][d][0], bufferSize * sizeof(Grid),
+                              MPI_BYTE, nbrRank, tag, MPI_COMM_WORLD, &requests[reqCount]);
+                    reqCount++;
+                }
+            }
+            // A barrier here helps ensure all receives are posted.
+            MPI_Barrier(MPI_COMM_WORLD);
+            // Post sends.
+            for (int i = 0; i < localTileCount; i++) {
+                Tile &tile = info.tiles[i];
+                int gID = tile.info.globalID;
+                for (int d = 0; d < 8; d++) {
+                    int tagSend = computeTag(gID, d);
+                    vector<Grid> sendBuffer = packSendBuffer(tile, d, guard);
+                    int nbrGID = getNeighborGID(gID, d, globalTileRows, globalTileCols);
+                    int nbrRank = owner[nbrGID];
+                    MPI_Isend(&sendBuffer[0], sendBuffer.size() * sizeof(Grid),
+                              MPI_BYTE, nbrRank, tagSend, MPI_COMM_WORLD, &requests[reqCount]);
+                    reqCount++;
+                }
+            }
+            MPI_Waitall(reqCount, &requests[0], MPI_STATUSES_IGNORE);
+            // Update guard regions from received data.
+            for (int i = 0; i < localTileCount; i++) {
+                for (int d = 0; d < 8; d++) {
+                    updateGuardRegion(info.tiles[i], d, guard, recvBuffers[i][d]);
+                }
+            }
+        } // End Phase F
+
+        // --- Phase G: Dynamic Tile Migration ---
         if (step == 5 && size == 9) {
             if (rank == 0 || rank == 1 || rank == 2) {
                 if (info.tiles.size() > 3) {
@@ -334,7 +411,7 @@ int main(int argc, char* argv[]) {
             MPI_Allreduce(MPI_IN_PLACE, &owner[0], totalGlobalTiles, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
         }
 
-        // --- Phase F: Save Simulation Data ---
+        // --- Phase H: Save Simulation Data ---
         if (step % save_frequency == 0) {
             std::string filename = "Simulation/Fields/fields_rank_" + to_string(rank) +
                                    "_step_" + to_string(step) + ".h5";
