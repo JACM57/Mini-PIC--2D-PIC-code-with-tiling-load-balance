@@ -26,11 +26,11 @@ void updateBhalf(
     for (int j = guard; j < totalY - guard; j++) {
         for (int i = guard; i < totalX - guard; i++) {
             int idx = j * totalX + i;
-            BhalfNew[idx].Bx = BhalfOld[idx].Bx - (dt / dy) * (Efull[(j+1) * totalX + i].Ez - Efull[idx].Ez);
-            BhalfNew[idx].By = BhalfOld[idx].By + (dt / dx) * (Efull[j * totalX + (i+1)].Ez - Efull[idx].Ez);
+            BhalfNew[idx].Bx = BhalfOld[idx].Bx - (dt / (2*dy)) * (Efull[(j+1) * totalX + i].Ez - Efull[idx].Ez);
+            BhalfNew[idx].By = BhalfOld[idx].By + (dt / (2*dx)) * (Efull[j * totalX + (i+1)].Ez - Efull[idx].Ez);
             BhalfNew[idx].Bz = BhalfOld[idx].Bz
-                - (dt / dx) * (Efull[j * totalX + (i+1)].Ey - Efull[idx].Ey)
-                + (dt / dy) * (Efull[(j+1) * totalX + i].Ex - Efull[idx].Ex);
+                - (dt / (2*dx)) * (Efull[j * totalX + (i+1)].Ey - Efull[idx].Ey)
+                + (dt / (2*dy)) * (Efull[(j+1) * totalX + i].Ex - Efull[idx].Ex);
         }
     }
 }
