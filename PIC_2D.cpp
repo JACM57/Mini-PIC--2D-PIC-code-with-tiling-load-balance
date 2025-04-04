@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
     int total_steps = static_cast<int>(sim_time / dt);
     int save_frequency = 25;
 
-    // Initialize each tile on this rank.
+    // Tile initialization
     for (int t = 0; t < numTiles; t++) {
         Tile &tile = info.tiles[t];
         int tRow = t / tileCols; // local tile row
